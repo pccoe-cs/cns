@@ -1,0 +1,101 @@
+#!/usr/bin/env python3
+import hashlib
+
+def mod_exp(b, e, m):
+    return pow(b, e, m)
+
+def derive_key(shared_secret_int, length=16):
+    # Simple KDF: SHA-256 of the integer -> take first `length` bytes
+    sb = shared_secret_int.to_bytes((shared_secret_int.bit_length() + 7) // 8 or 1, 'big')
+    return hashlib.sha256(sb).digest()[:length]
+
+def xor_encrypt(key_bytes, data_bytes):
+    return bytes(b ^ key_bytes[i % len(key_bytes)] for i, b in enumerate(data_bytes))
+
+def main():
+    p = int(input("Enter prime p: "))
+    g = int(input("Enter generator g: "))
+    a = int(input("Enter A's private key: "))
+    b = int(input("Enter B's private key: "))
+    c = int(input("Enter C's private key (attacker): "))
+
+    A_pub = mod_exp(g, a, p)
+    B_pub = mod_exp(g, b, p)
+    C_pub = mod_exp(g, c, p)
+
+    while True:
+        print("\n1 Exchange Public Keys between A and B")
+        print("2 Perform Man-In-The-Middle Attack by C (intercept a message)")
+        print("3 Exit")
+        choice = input("Choice: ").strip()
+
+        if choice == "1":
+            print("\nA's Public Key:", A_pub)
+            print("B's Public Key:", B_pub)
+            S_A = mod_exp(B_pub, a, p)
+            S_B = mod_exp(A_pub, b, p)
+            print("A computes shared secret (int):", S_A)
+            print("B computes shared secret (int):", S_B)
+            if S_A == S_B:
+                print("Secure communication established.")
+            else:
+                print("Shared secrets do not match!")
+
+        elif choice == "2":
+            print("\nA's Public Key (sent):", A_pub)
+            print("B's Public Key (sent):", B_pub)
+            print("C intercepts and sends its Public Key to both parties:", C_pub)
+
+            # A and B will each compute secret using C_pub (because C replaced the other's pubkey)
+            S_A = mod_exp(C_pub, a, p)   # A thinks this is shared with B, actually with C
+            S_B = mod_exp(C_pub, b, p)   # B thinks this is shared with A, actually with C
+
+            # C computes secrets with A and B using their true public keys
+            S_C_A = mod_exp(A_pub, c, p)
+            S_C_B = mod_exp(B_pub, c, p)
+
+            print("A computes shared secret with (what it thinks is B):", S_A)
+            print("B computes shared secret with (what it thinks is A):", S_B)
+            print("C computes shared secret with A:", S_C_A)
+            print("C computes shared secret with B:", S_C_B)
+
+            # Derive symmetric keys (toy KDF)
+            key_A = derive_key(S_A)
+            key_B = derive_key(S_B)
+            key_C_with_A = derive_key(S_C_A)
+            key_C_with_B = derive_key(S_C_B)
+
+            # Simple message flow: A encrypts for B (actually for C), C intercepts, modifies, forwards to B
+            plaintext = input("\nEnter plaintext message A sends to B: ").encode('utf-8')
+            ciphertext_from_A = xor_encrypt(key_A, plaintext)
+            print("Ciphertext on the wire (hex):", ciphertext_from_A.hex())
+
+            # C intercepts and decrypts using key_C_with_A
+            decrypted_by_C = xor_encrypt(key_C_with_A, ciphertext_from_A).decode('utf-8', errors='replace')
+            print("C decrypts and sees:", decrypted_by_C)
+
+            # C modifies the message
+            modified = decrypted_by_C + " [MODIFIED by C]"
+            print("C modifies message to:", modified)
+
+            # C re-encrypts for B using key_C_with_B and forwards
+            new_cipher_for_B = xor_encrypt(key_C_with_B, modified.encode('utf-8'))
+            print("C forwards new ciphertext (hex):", new_cipher_for_B.hex())
+
+            # B decrypts using its key_B (which matches key_C_with_B)
+            received_by_B = xor_encrypt(key_B, new_cipher_for_B).decode('utf-8', errors='replace')
+            print("B decrypts and receives:", received_by_B)
+
+            if S_A == S_C_A and S_B == S_C_B:
+                print("\nMITM attack successful: C can read and modify messages between A and B.")
+            else:
+                print("\nMITM attack failed (shared secrets don't align).")
+
+        elif choice == "3":
+            print("Exiting.")
+            break
+        else:
+            print("Invalid option. Enter 1, 2 or 3.")
+
+if __name__ == "__main__":
+    main()
