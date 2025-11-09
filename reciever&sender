@@ -1,0 +1,31 @@
+import time
+def modexp(b, e, m):
+    r = 1
+    b = b % m
+    while e > 0:
+        if e % 2 == 1:
+            r = (r * b) % m
+        e //= 2
+        b = (b * b) % m
+    return r
+
+
+try:
+    time1 = time.perf_counter()
+    with open("data.txt", "r") as f:
+        lines = f.readlines()
+        n, d = map(int, lines[0].split())
+        cipher = [int(x) for x in lines[1].split()]
+    time2 = time.perf_counter()
+except FileNotFoundError:
+    print("Error: data.txt not found. Run sender first!")
+    exit()
+
+print(f"n = {n}, d = {d}")
+print("Received Ciphertext:", cipher)
+print("Decrypting...", time2 - time1, "seconds")
+print("\nDecrypted Message: ", end="")
+for c in cipher:
+    m = modexp(c, d, n)
+    print(m, end=" ")
+print()
