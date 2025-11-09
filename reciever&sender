@@ -1,3 +1,4 @@
+"""Reciever"""
 import time
 def modexp(b, e, m):
     r = 1
@@ -29,3 +30,79 @@ for c in cipher:
     m = modexp(c, d, n)
     print(m, end=" ")
 print()
+
+"""SENDER"""
+
+import time
+
+
+def gcd(a, b):
+    while b != 0:
+        a, b = b, a % b
+    return a
+
+
+def modinv(e, phi):
+    for i in range(1, phi):
+        if (e * i) % phi == 1:
+            return i
+    return None
+
+
+def modexp(b, e, m):
+    r = 1
+    b = b % m
+    while e > 0:
+        if e % 2 == 1:
+            r = (r * b) % m
+        e //= 2
+        b = (b * b) % m
+    return r
+
+
+def is_prime(num):
+    if num <= 1:
+        return False
+    for i in range(2, int(num ** 0.5) + 1):
+        if num % i == 0:
+            return False
+    return True
+
+
+while True:
+    p = int(input("Enter prime number p: "))
+    q = int(input("Enter prime number q: "))
+    if is_prime(p) and is_prime(q):
+        break
+    else:
+        print("Both p and q must be prime numbers! Try again.\n")
+time1 = time.perf_counter()
+n = p * q
+phi = (p - 1) * (q - 1)
+print(f"\nn = {n}, phi = {phi}")
+
+while True:
+    e = int(input("Enter e : "))
+    if gcd(e, phi) == 1:
+        break
+    else:
+        print("Invalid e! Try again.")
+
+d = modinv(e, phi)
+print(f"\nPrivate key (d) = {d}")
+
+while True:
+    m = int(input(f"\nEnter the number to encrypt (must be less than {n}): "))
+    if 0 <= m < n:
+        break
+    else:
+        print(f"Error: Message must be between 0 and {n - 1}. Try again!")
+
+c = modexp(m, e, n)
+print(f"\nCiphertext = {c}")
+
+with open("data.txt", "w") as f:
+    f.write(f"{n} {d}\n{c}\n")
+
+print("\n[+] Ciphertext and keys saved to data.txt successfully!")
+print("Encryption complete.", time.perf_counter() - time1, "seconds")
