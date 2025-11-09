@@ -1,0 +1,210 @@
+import random
+import string
+
+def caesar_cipher(text, shift, mode='encrypt'):
+    result = ""
+    if mode == 'decrypt':
+        shift = -shift
+    for ch in text:
+        if ch.isalpha():
+            base = 'A' if ch.isupper() else 'a'
+            result += chr((ord(ch) - ord(base) + shift) % 26 + ord(base))
+        else:
+            result += ch
+    return result
+
+
+def monoalphabetic_cipher(text, key, mode='encrypt'):
+    key = key.upper()
+    alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
+
+    if len(key) != 26 or len(set(key)) != 26 or not all(ch.isalpha() for ch in key):
+        return "Error: Key must contain exactly 26 unique alphabetic letters (A-Z)."
+
+    result = ""
+
+    if mode == 'decrypt':
+        for ch in text:
+            if ch.isalpha():
+                index = key.index(ch.upper())
+                result += alphabet[index]
+            else:
+                result += ch
+    else:
+        for ch in text:
+            if ch.isalpha():
+                index = ord(ch.upper()) - ord('A')
+                result += key[index]
+            else:
+                result += ch
+    return result
+
+
+def polyalphabetic_cipher(text, key, mode='encrypt'):
+    result = ""
+    key = key.upper()
+    key_index = 0
+    for ch in text:
+        if ch.isalpha():
+            base = 'A' if ch.isupper() else 'a'
+            shift = ord(key[key_index % len(key)]) - ord('A')
+            if mode == 'decrypt':
+                shift = -shift
+            result += chr((ord(ch) - ord(base) + shift) % 26 + ord(base))
+            key_index += 1
+        else:
+            result += ch
+    return result
+
+
+def rail_fence_encrypt(text, key):
+    rail = ['' for _ in range(key)]
+    row, direction = 0, 1
+    for c in text:
+        rail[row] += c
+        if row == 0:
+            direction = 1
+        elif row == key - 1:
+            direction = -1
+        row += direction
+    return ''.join(rail)
+
+
+def rail_fence_decrypt(cipher, key):
+    rail = [['\n' for _ in range(len(cipher))] for _ in range(key)]
+    dir_down = None
+    row, col = 0, 0
+
+    for i in range(len(cipher)):
+        if row == 0:
+            dir_down = True
+        if row == key - 1:
+            dir_down = False
+        rail[row][col] = '*'
+        col += 1
+        row += 1 if dir_down else -1
+
+    index = 0
+    for i in range(key):
+        for j in range(len(cipher)):
+            if (rail[i][j] == '*') and (index < len(cipher)):
+                rail[i][j] = cipher[index]
+                index += 1
+
+    result = []
+    row, col = 0, 0
+    for i in range(len(cipher)):
+        if row == 0:
+            dir_down = True
+        if row == key - 1:
+            dir_down = False
+        if rail[row][col] != '\n':
+            result.append(rail[row][col])
+            col += 1
+        row += 1 if dir_down else -1
+    return ''.join(result)
+
+
+def vernam_cipher(text, key):
+    result = ""
+    key_index = 0
+    for char in text:
+        if char.isalpha():
+            c = char.upper()
+            k = key[key_index % len(key)].upper()
+            xor_val = (ord(c) - ord('A')) ^ (ord(k) - ord('A'))
+            encrypted = chr((xor_val % 26) + ord('A'))  # ensure valid A–Z
+            result += encrypted
+            key_index += 1
+        else:
+            result += char
+    return result
+
+
+def one_time_pad(text, key):
+    """OTP encryption/decryption (same function)."""
+    result = ""
+    for i in range(len(text)):
+        if text[i].isalpha():
+            c = text[i].upper()
+            k = key[i].upper()
+            xor_val = (ord(c) - ord('A')) ^ (ord(k) - ord('A'))
+            encrypted = chr((xor_val % 26) + ord('A'))  # ensure valid A–Z
+            result += encrypted
+        else:
+            result += text[i]
+    return result
+
+def generate_otp_key(length):
+    """Generate a truly random key for OTP."""
+    return ''.join(random.choice(string.ascii_uppercase) for _ in range(length))
+
+
+
+
+# ---------------- MENU ----------------
+while True:
+    print("\n Classical Encryption Techniques")
+    print("1. Caesar Cipher")
+    print("2. Monoalphabetic Cipher")
+    print("3. Polyalphabetic Cipher")
+    print("4. Rail Fence Cipher")
+    print("5. Vernam Cipher")
+    print("6. One-Time Pad Cipher")
+    print("7. Exit")
+
+    choice = input("Enter your choice (1-7): ")
+
+    if choice == '1':
+        text = input("Enter text: ")
+        shift = int(input("Enter shift value: "))
+        mode = input("Encrypt or Decrypt (e/d): ").lower()
+        print("Result:", caesar_cipher(text, shift, 'encrypt' if mode == 'e' else 'decrypt'))
+
+    elif choice == '2':
+        text = input("Enter text: ")
+        key = input("Enter the substitution key (26 letters A-Z): ")
+        mode = input("Encrypt or Decrypt (e/d): ").lower()
+        print("Result:", monoalphabetic_cipher(text, key, 'encrypt' if mode == 'e' else 'decrypt'))
+
+    elif choice == '3':
+        text = input("Enter text: ")
+        key = input("Enter the key: ")
+        mode = input("Encrypt or Decrypt (e/d): ").lower()
+        print("Result:", polyalphabetic_cipher(text, key, 'encrypt' if mode == 'e' else 'decrypt'))
+
+    elif choice == '4':
+        text = input("Enter the text: ")
+        key = int(input("Enter the key (number of rails): "))
+        mode = input("Encrypt or Decrypt (e/d): ").lower()
+        if mode == 'e':
+            print("Result:", rail_fence_encrypt(text, key))
+        else:
+            print("Result:", rail_fence_decrypt(text, key))
+
+    elif choice == '5':
+        text = input("Enter the text: ")
+        key = input("Enter the key of same length: ")
+        print("Note: Vernam Cipher encryption and decryption are identical.")
+        print("Result:", vernam_cipher(text, key))
+
+    elif choice == '6':
+        text = input("Enter the text (letters only): ")
+        key_choice = input("Generate random key? (y/n): ").lower()
+        if key_choice == 'y':
+            key = generate_otp_key(len(text))
+            print("Generated Key:", key)
+        else:
+            key = input("Enter key (same length as text): ")
+        if len(key) != len(text):
+            print("Error: Key length must match text length exactly!")
+        else:
+            print("Note: OTP encryption and decryption are identical.")
+            print("Result:", one_time_pad(text, key))
+
+    elif choice == '7':
+        print("Exiting program. Goodbye!")
+        break
+
+    else:
+        print("Invalid choice! Please try again.")
