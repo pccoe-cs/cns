@@ -1,0 +1,65 @@
+import string
+
+def custom_cipher(text, mono_key, shift, mode='encrypt'):
+    """Custom cipher that combines Monoalphabetic Substitution + Caesar Shift."""
+    mono_key = mono_key.upper()
+    alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
+
+    # Validate monoalphabetic key
+    if len(mono_key) != 26 or len(set(mono_key)) != 26 or not all(ch.isalpha() for ch in mono_key):
+        return "Error: Key must contain exactly 26 unique alphabetic letters (A-Z)."
+
+    if mode == 'encrypt':
+        # Step 1: Monoalphabetic substitution
+        substituted = ""
+        for ch in text:
+            if ch.isalpha():
+                index = ord(ch.upper()) - ord('A')
+                sub_char = mono_key[index]
+                substituted += sub_char
+            else:
+                substituted += ch
+
+        # Step 2: Caesar shift
+        result = ""
+        for ch in substituted:
+            if ch.isalpha():
+                shifted = chr((ord(ch.upper()) - ord('A') + shift) % 26 + ord('A'))
+                result += shifted
+            else:
+                result += ch
+        return result
+
+    elif mode == 'decrypt':
+        # Step 1: Reverse Caesar shift
+        shifted_back = ""
+        for ch in text:
+            if ch.isalpha():
+                shifted_char = chr((ord(ch.upper()) - ord('A') - shift) % 26 + ord('A'))
+                shifted_back += shifted_char
+            else:
+                shifted_back += ch
+
+        # Step 2: Reverse monoalphabetic substitution
+        decrypted = ""
+        for ch in shifted_back:
+            if ch.isalpha():
+                index = mono_key.index(ch.upper())
+                decrypted += alphabet[index]
+            else:
+                decrypted += ch
+        return decrypted
+
+    else:
+        return "Error: Mode must be 'encrypt' or 'decrypt'."
+
+# ---------------- MAIN ----------------
+if __name__ == "__main__":
+    print("\nCustom Cipher (Monoalphabetic + Caesar)")
+    text = input("Enter text: ")
+    mono_key = input("Enter the monoalphabetic key (26 unique A-Z letters): ")
+    shift = int(input("Enter Caesar shift value: "))
+    mode = input("Encrypt or Decrypt (e/d): ").lower()
+
+    result = custom_cipher(text, mono_key, shift, 'encrypt' if mode == 'e' else 'decrypt')
+    print("Result:", result)
