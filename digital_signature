@@ -1,0 +1,142 @@
+#!/usr/bin/env python3
+import hashlib
+import math
+
+def egcd(a, b):
+    """Extended Euclidean algorithm. Returns (g, x, y) with ax + by = g = gcd(a,b)."""
+    if b == 0:
+        return (a, 1, 0)
+    g, x1, y1 = egcd(b, a % b)
+    return (g, y1, x1 - (a // b) * y1)
+
+def mod_inverse(e, phi):
+    g, x, _ = egcd(e, phi)
+    if g != 1:
+        return None
+    return x % phi
+
+def mod_exp(base, exp, mod):
+    return pow(base, exp, mod)
+
+def int_to_bytes(n, length=None):
+    if n == 0:
+        b = b'\x00'
+    else:
+        b = n.to_bytes((n.bit_length() + 7) // 8, 'big')
+    if length:
+        # pad to length
+        return b.rjust(length, b'\x00')
+    return b
+
+def bytes_to_int(b):
+    return int.from_bytes(b, 'big')
+
+def sha256_int(data_bytes):
+    h = hashlib.sha256(data_bytes).digest()
+    return bytes_to_int(h), h  # integer and raw digest
+
+def rsa_chunk_encrypt_bytes(pub_e, pub_n, data_bytes):
+    """Encrypt bytes with RSA by chunking into blocks smaller than n. Return list of integers."""
+    max_chunk = (pub_n.bit_length() - 1) // 8  # maximum bytes per block such that block_int < n
+    if max_chunk <= 0:
+        raise ValueError("n too small for any chunk")
+    chunks = []
+    for i in range(0, len(data_bytes), max_chunk):
+        chunk = data_bytes[i:i+max_chunk]
+        m = bytes_to_int(chunk)
+        if m >= pub_n:
+            raise ValueError("Chunk integer >= n, increase n or reduce chunk size")
+        c = mod_exp(m, pub_e, pub_n)
+        chunks.append(c)
+    return chunks, max_chunk
+
+def rsa_chunk_decrypt_bytes(priv_d, priv_n, chunks, chunk_size):
+    out = bytearray()
+    for c in chunks:
+        m = mod_exp(c, priv_d, priv_n)
+        b = int_to_bytes(m, length=chunk_size)
+        out.extend(b)
+    # strip potential leading zero padding if used (we'll strip trailing nulls from last chunk)
+    # For simplicity, return bytes and let caller parse.
+    return bytes(out).rstrip(b'\x00')
+
+def generate_keypair_from_primes(p, q, e):
+    n = p * q
+    phi = (p - 1) * (q - 1)
+    if math.gcd(e, phi) != 1:
+        raise ValueError("e not coprime with phi")
+    d = mod_inverse(e, phi)
+    if d is None:
+        raise ValueError("No modular inverse found for e")
+    return (e, d, n)
+
+def demo():
+    print("Educational RSA demo for: confidentiality + integrity + non-repudiation\n")
+    print("Enter small primes for demo purposes (NOT secure). Use larger primes for realistic use.\n")
+    p_x = int(input("Enter X (sender) prime p_x (>3): ").strip())
+    q_x = int(input("Enter X (sender) prime q_x (>3): ").strip())
+    p_y = int(input("Enter Y (receiver) prime p_y (>3): ").strip())
+    q_y = int(input("Enter Y (receiver) prime q_y (>3): ").strip())
+
+    # pick e (public exponent). 65537 is common, but phi must be coprime with it.
+    e_x = 65537
+    e_y = 65537
+
+    # generate keypairs
+    e_x, d_x, n_x = generate_keypair_from_primes(p_x, q_x, e_x)
+    e_y, d_y, n_y = generate_keypair_from_primes(p_y, q_y, e_y)
+
+    print(f"\nX public key (e_x, n_x) = ({e_x}, {n_x})")
+    print(f"Y public key (e_y, n_y) = ({e_y}, {n_y})")
+    # in practice: keep d_x, d_y secret
+
+    message = input("\nEnter plaintext message X sends to Y: ").encode('utf-8')
+
+    # --- Signing by X ---
+    hash_int, hash_raw = sha256_int(message)
+    # ensure hash_int < n_x (for demo, n_x should be larger than hash; if not, pick larger primes)
+    if hash_int >= n_x:
+        print("Warning: X's modulus n_x too small for direct signature of hash; demo may fail. Use larger primes.")
+    signature_int = mod_exp(hash_int, d_x, n_x)
+    signature_bytes = int_to_bytes(signature_int)  # variable length
+
+    # Combine message and signature into payload unambiguously
+    # Simple format: [4-byte sig_len][sig_bytes][message_bytes]
+    sig_len_bytes = len(signature_bytes).to_bytes(4, 'big')
+    payload = sig_len_bytes + signature_bytes + message
+
+    # --- Encrypt payload to Y (confidentiality) ---
+    chunks, chunk_size = rsa_chunk_encrypt_bytes(e_y, n_y, payload)
+    print("\nPayload encrypted into", len(chunks), "RSA blocks (ints). These ints would be transmitted over the wire.")
+
+    # --- Simulated network: Z (attacker) gets the ciphertext blocks but cannot decrypt ---
+    intercepted = chunks[:]  # attacker sees these integers but does not have d_y
+    print("Attacker Z can see ciphertext blocks but cannot read payload without Y's private key.")
+
+    # --- Y receives and decrypts ---
+    recovered_payload = rsa_chunk_decrypt_bytes(d_y, n_y, intercepted, chunk_size)
+    # parse payload
+    sig_len = int.from_bytes(recovered_payload[:4], 'big')
+    recv_sig_bytes = recovered_payload[4:4+sig_len]
+    recv_msg = recovered_payload[4+sig_len:]
+
+    # convert signature bytes to int for verification
+    recv_sig_int = bytes_to_int(recv_sig_bytes)
+
+    # Y verifies signature using X's public key
+    recovered_hash_int = mod_exp(recv_sig_int, e_x, n_x)
+    recomputed_hash_int, _ = sha256_int(recv_msg)
+
+    print("\nReceiver Y decrypted payload.")
+    print("Recovered message:", recv_msg.decode('utf-8', errors='replace'))
+    print("Recovered signature (int):", recv_sig_int)
+    print("Recovered hash from signature:", recovered_hash_int)
+    print("Hash recomputed from recovered message:", recomputed_hash_int)
+
+    if recovered_hash_int == recomputed_hash_int:
+        print("\nSignature verification OK: message integrity and authenticity (non-repudiation) hold.")
+    else:
+        print("\nSignature verification FAILED: integrity/authenticity not satisfied.")
+
+if __name__ == "__main__":
+    demo()
