@@ -1,0 +1,129 @@
+"""reciever.py"""
+
+import time
+
+# Function to find gcd
+def gcd(a, b):
+    while b != 0:
+        a, b = b, a % b
+    return a
+
+# Function to find modular inverse
+def mod_inverse(e, phi):
+    for d in range(1, phi):
+        if (d * e) % phi == 1:
+            return d
+    return 0
+
+# Fast modular exponentiation
+def mod_exp(base, exp, mod):
+    result = 1
+    b = base % mod
+    while exp > 0:
+        if exp % 2 == 1:
+            result = (result * b) % mod
+        b = (b * b) % mod
+        exp = exp // 2
+    return result
+
+def main():
+    # Step 1: Generate RSA keys
+    p = int(input("Enter first prime (p): "))
+    q = int(input("Enter second prime (q): "))
+
+    n = p * q
+    phi = (p - 1) * (q - 1)
+
+    e = 3
+    while gcd(e, phi) != 1:
+        e += 1
+
+    start_keygen = time.time_ns()
+    d = mod_inverse(e, phi)
+    end_keygen = time.time_ns()
+
+    print(f"\nGenerated Public Key: (e={e}, n={n})")
+    print(f"Generated Private Key: (d={d}, n={n})")
+    print(f"Key Generation Time: {end_keygen - start_keygen} nanoseconds")
+
+    # Step 2: Save public key to file
+    with open("public_key.txt", "w") as f:
+        f.write(f"{e} {n}\n")
+    print("\n[+] Public Key saved to public_key.txt (can be shared)")
+    print("[+] Private Key kept secret (not saved to file)")
+
+    input("\n========== Waiting for sender to encrypt and send message... ==========\nRun sender.py now, then press Enter here...")
+
+    # Step 3: Receive ciphertext from file
+    try:
+        with open("ciphertext.txt", "r") as f:
+            cipher = int(f.read().strip())
+        print(f"\nReceiver: Ciphertext received: {cipher}")
+    except FileNotFoundError:
+        print("Error: ciphertext.txt not found. Run sender.py first!")
+        return
+
+    # Step 4: Decrypt using private key
+    start_decrypt = time.time_ns()
+    decrypted = mod_exp(cipher, d, n)
+    end_decrypt = time.time_ns()
+
+    print(f"Receiver: Decrypted Text is: {decrypted}")
+    print(f"Decryption Time: {end_decrypt - start_decrypt} nanoseconds")
+
+if __name__ == "__main__":
+    main()
+
+
+
+
+"""sender.py"""
+import time
+
+# Fast modular exponentiation
+def mod_exp(base, exp, mod):
+    result = 1
+    b = base % mod
+    while exp > 0:
+        if exp % 2 == 1:
+            result = (result * b) % mod
+        b = (b * b) % mod
+        exp = exp // 2
+    return result
+
+def main():
+    print("========== SENDER: Encryption ==========")
+
+    # Step 1: Read receiver's public key
+    try:
+        with open("public_key.txt", "r") as f:
+            e, n = map(int, f.read().split())
+        print(f"Sender: Received public key (e={e}, n={n}) from receiver")
+    except FileNotFoundError:
+        print("Error: public_key.txt not found! Run receiver.py first to generate public key!")
+        return
+
+    # Step 2: Input plaintext
+    while True:
+        plaintext = int(input("Sender: Enter integer plaintext to encrypt (plaintext > 0 && plaintext < n): "))
+        if 0 < plaintext < n:
+            break
+        print("Invalid input, please try again.")
+
+    # Step 3: Encrypt using public key
+    start = time.time_ns()
+    cipher = mod_exp(plaintext, e, n)
+    end = time.time_ns()
+
+    print(f"\nSender: Ciphertext is: {cipher}")
+    print(f"Encryption Time: {end - start} nanoseconds")
+
+    # Step 4: Send ciphertext to receiver via file
+    with open("ciphertext.txt", "w") as f:
+        f.write(str(cipher) + "\n")
+
+    print("\n[+] Ciphertext saved to ciphertext.txt")
+    print("[+] Only ciphertext is being sent (no private key shared!)")
+
+if __name__ == "__main__":
+    main()
