@@ -1,0 +1,61 @@
+import numpy as np
+from PIL import Image
+import random
+
+def make_permutation(n, seed):
+    """Create a deterministic permutation of size n using seed."""
+    perm = list(range(n))
+    rnd = random.Random(seed)
+    for i in range(n - 1, 0, -1):
+        j = rnd.randint(0, i)
+        perm[i], perm[j] = perm[j], perm[i]
+    return perm
+
+def inverse_permutation(perm):
+    """Build inverse permutation: inverse[perm[i]] = i"""
+    n = len(perm)
+    inv = [0] * n
+    for i in range(n):
+        inv[perm[i]] = i
+    return inv
+
+def main():
+    try:
+        path = input("Enter image path: ").strip()
+        key = int(input("Enter numeric key (used as permutation seed): "))
+        mode = input("Encrypt (E) or Decrypt (D)? ").strip().upper()[0]
+
+        img = Image.open(path).convert("RGBA")
+        w, h = img.size
+        n = w * h
+
+        pixels = np.array(img).reshape(-1, 4)
+        perm = make_permutation(n, key)
+        out = np.zeros_like(pixels)
+
+        if mode == 'E':
+            for i in range(n):
+                pos = perm[i]
+                out[pos] = pixels[i]
+            out_img = Image.fromarray(out.reshape(h, w, 4), "RGBA")
+            out_img.save("encrypted_permuted.png")
+            print("Encrypted image saved as encrypted_permuted.png")
+
+        elif mode == 'D':
+            inv = inverse_permutation(perm)
+            for j in range(n):
+                src_index = j
+                orig_index = inv[src_index]
+                out[orig_index] = pixels[src_index]
+            out_img = Image.fromarray(out.reshape(h, w, 4), "RGBA")
+            out_img.save("decrypted_restored.png")
+            print("Decrypted image saved as decrypted_restored.png")
+
+        else:
+            print("Invalid mode. Use E or D.")
+
+    except Exception as ex:
+        print(f"Error: {ex}")
+
+if __name__ == "__main__":
+    main()
